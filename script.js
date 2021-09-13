@@ -21,9 +21,9 @@ async function loadFileBuffer(file) {
 // i have testcase now with the first chunk from map.Gbx
 
 async function init() {
-    let buffer = await loadFileBuffer('data/map.Gbx')
+    // let buffer = await loadFileBuffer('data/map.Gbx')
     // let buffer = await loadFileBuffer('data/ghost.gbx')
-    // let buffer = await loadFileBuffer('data/boing.Ghost.gbx');
+    let buffer = await loadFileBuffer('data/boing.Ghost.gbx');
     const reader = new ViewReader(buffer)
 
     let magic = reader.readStringOfLength(3)
@@ -114,11 +114,14 @@ function readBody(body) {
     const nullChunk = 0xfacade01;
     while (true) {
         let chunkId = reader.readUInt32()
-        console.log({ chunkId })
+        console.warn({ chunkId: chunkId.toString(16) })
         if (chunkId === 0xFACADE01) // no more chunks
         {
-            console.log('no more chunks')
-            return;
+            console.log('FACADE01 Found')
+            reader.resetLookback()
+            skipToNextChunk(reader)
+            continue
+            // return;
         }
 
         let chunkFlags = chunkMap[chunkId] ?? null;
@@ -127,11 +130,11 @@ function readBody(body) {
         // skip chunk if it's unknown or skippable and not needing to be read:
         if (chunkFlags === null || (chunkFlags.skippable && chunkFlags.read === false)) {
             let skip = reader.readUInt32()
-            console.log({ skip })
+            console.log({ skip: skip.toString(16) })
             if (skip !== 0x534B4950) // "SKIP"
             {
-                console.warn("SKIP failed?")
-                return;
+                skipToNextChunk(reader)
+                continue
             }
 
             console.log('skipping chunk', chunkId)
@@ -153,9 +156,86 @@ function readBody(body) {
     }
 }
 
+function skipToNextChunk(reader) {
+    console.warn("Skipping to next chunk")
+    let skipped = 0
+    while (true) {
+        skipped++
+        let id = reader.readUInt32()
+        reader.skip(-3)
+        if (chunkMap.hasOwnProperty(id)) {
+            console.log('chunk found after skipping', skipped, 'bytes', id.toString(16))
+            reader.skip(-1)
+            break
+        }
+    }
+}
+
 function readChunk(reader, chunkId) {
     console.log('reading chunk', chunkId.toString(16));
     if (chunkId === 0x0304300d) {
         console.log(reader.readMeta())
+    }
+    if (chunkId === 0x0303f006) {
+        let isReplaying = reader.readUInt32()
+        console.log({ isReplaying })
+        let rest = readChunk(reader, 0x0303F005)
+        console.log({ rest })
+    }
+    if (chunkId === 0x0303F005) {
+        let uncompressedSize = reader.readUInt32()
+        let compressedSize = reader.readUInt32()
+        let compressedBytes = reader.readBytes(compressedSize)
+        console.log({ uncompressedSize, compressedSize, compressedBytes })
+        return { uncompressedSize, compressedSize, compressedBytes }
+    }
+    if (chunkId === 0x03092000) {
+        let x = reader.readUInt32()
+        let playerModel = reader.readMeta()
+        let y = reader.readVec3()
+        let numSkinRef = reader.readUInt32()
+        let skinRefs = []
+        for (let i = 0; i < numSkinRef; i++)
+            skinRefs.push(reader.readFileRef())
+        let z = reader.readUInt32()
+        let ghostNickname = reader.readString()
+        let ghostAvatarFile = reader.readString()
+        let xx = reader.readUInt32()
+        console.log({ x, playerModel, y, skinRefs, z, ghostNickname, ghostAvatarFile, xx })
+        skipToNextChunk(reader)
+    }
+    if (chunkId === 0x0309200b) {
+        let numCheckpoints = reader.readUInt32()
+        let checkpoints = []
+        for (let i = 0; i < numCheckpoints; i++) {
+            checkpoints.push({
+                time: reader.readUInt32(),
+                stuntsScore: reader.readUInt32(),
+            })
+        }
+        console.log({ numCheckpoints, checkpoints })
+    }
+    if (chunkId === 0x0309200c) {
+        let ignored = reader.readUInt32();
+        console.log({ ignored })
+    }
+    if (chunkId === 0x0309200E) {
+        let uid = reader.readLookbackString()
+        console.log({ uid })
+        skipToNextChunk(reader)
+    }
+    if (chunkId === 0x0309200f) {
+        let ghostLogin = reader.readString()
+        console.log({ ghostLogin })
+    }
+    if (chunkId === 0x0309200f) {
+        let ignored = reader.readLookbackString()
+        console.log({ ignored })
+        skipToNextChunk(reader)
+    }
+    if (chunkId === 0x03092010) {
+        let ignored = reader.readLookbackString()
+        console.log({ ignored })
+        skipToNextChunk(reader)
     }
 }

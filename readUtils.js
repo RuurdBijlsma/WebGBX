@@ -64,21 +64,25 @@ class ViewReader {
     readLookbackString() {
         if (this.lookback.encountered === false) {
             this.lookback.version = this.readUInt32()
+            console.log("first lookback encountered, version: ", this.lookback.version)
         }
         this.lookback.encountered = true
         let indexData = this.readUInt32().toString(2).padStart(32, '0')
-        let flags = indexData.substr(30, 2)
+        let flags = indexData.substr(0, 2).split('').reverse().join('')
         let indexIsNumber = flags === '00'
-        let index = parseInt(indexData.substr(0, 30), 2)
+        let index = parseInt(indexData.substr(2), 2)
+        console.log('lookback index uint32: ', indexData, index)
         if (indexIsNumber) {
             // use global string table 
-            console.warn('not implemented')
-            return 'Not Implemented'
+            let value = collections[index]?.collection ?? "Unknown"
+            console.log('global cached value =', value)
+            return value
         }
         if (index === 0) {
             let newString = this.readString()
+            console.log('newString value =', newString)
             this.lookback.list.push(newString)
-            return newString;
+            return newString
         } else {
             let value = this.lookback.list[index - 1]
             if (value === null || value === undefined) {
@@ -87,7 +91,8 @@ class ViewReader {
                 if (flags[1] === '1')
                     return 'Unassigned'
             } else {
-                return value;
+                console.log('cached string value =', value)
+                return value
             }
         }
     }
